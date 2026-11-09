@@ -459,7 +459,7 @@ async function loadBackups() {
       if (admin) r.push(h('span', null,
         h('a', { class: 'btn small', href: '/api/backups/download?name=' + encodeURIComponent(b.name) }, 'Télécharger'), ' ',
         b.has_db ? h('button', { class: 'btn small', onclick: () => restoreBk(b) }, 'Restaurer les bases') : null, ' ',
-        b.oar.length ? h('button', { class: 'btn small', onclick: () => loadOar(b) }, "Charger l'OAR") : null, ' ',
+        b.oar.length ? h('button', { class: 'btn small', onclick: () => loadOar(b) }, tr('Charger les OAR')) : null, ' ',
         h('button', { class: 'btn small danger', onclick: () => delBk(b) }, 'Supprimer')));
       return r;
     });
@@ -488,8 +488,8 @@ async function restoreBk(b) {
   } catch (e) { toast(e.message, 'bad'); }
 }
 async function loadOar(b) {
-  if (!confirm(trf("Charger l'OAR de {0} ? Le contenu de la région sera remplacé.", b.name))) return;
-  try { await api('/api/backups/loadoar', { method: 'POST', body: { name: b.name } }); toast('Chargement lancé (voir la console)', 'ok'); } catch (e) { toast(e.message, 'bad'); }
+  if (!confirm(trf("Charger les OAR de {0} ? Le contenu des régions correspondantes sera remplacé.", b.name))) return;
+  try { await api('/api/backups/loadoar', { method: 'POST', body: { name: b.name } }); toast(tr('Chargement des OAR lancé (voir la console)'), 'ok'); } catch (e) { toast(e.message, 'bad'); }
 }
 $('#refreshBackups').onclick = loadBackups;
 $$('[data-bk]')[0].closest('.card').classList.add('adminonly');
@@ -702,6 +702,10 @@ async function loadRegions() {
     const d = await api('/api/regions?size=' + ($('#rs').value || 256));
     $('#regbox').replaceChildren(table(['Nom', 'Position', 'Taille', 'Port', 'UUID', ''],
       d.items.map(r => [r.name, r.location, r.size, r.port, r.uuid, h('button', { class: 'btn small danger', onclick: () => delRegion(r) }, 'Retirer')])));
+    const regionSelect = $('#regionSelect'), selectedRegion = regionSelect.value;
+    regionSelect.replaceChildren(...d.items.map(r => h('option', { value: r.name, text: r.name })));
+    if (d.items.some(r => r.name === selectedRegion)) regionSelect.value = selectedRegion;
+    $('#changeRegion').disabled = d.items.length === 0;
     setLocalizedAttribute($('#rl'), 'placeholder', 'Position x,y (proposée : {0})', d.suggest.location);
     setLocalizedAttribute($('#rp'), 'placeholder', 'Port (proposé : {0})', d.suggest.port);
     renderRegionMap(d);
@@ -715,6 +719,14 @@ async function loadRegionMap() {
 }
 $('#rs').onchange = loadRegions;
 $('#rl').oninput = () => renderRegionMap();
+$('#changeRegion').onclick = async () => {
+  const region = $('#regionSelect').value;
+  if (!region) return;
+  try {
+    await api('/api/regions/change', { method: 'POST', body: { region } });
+    toast(trf('La console cible maintenant la région {0}.', region), 'ok');
+  } catch (e) { toast(e.message, 'bad'); }
+};
 $('#rmk').onclick = async () => {
   try {
     const r = await api('/api/regions/create', { method: 'POST', body: { name: $('#rn').value, location: $('#rl').value, size: +$('#rs').value, port: +$('#rp').value || 0 } });

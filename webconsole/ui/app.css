@@ -175,6 +175,8 @@ h2{font-size:20px}
 @media(max-width:800px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;border-right:0;border-bottom:1px solid var(--line)}.brand{width:100%;margin:0 0 6px}.spacer{display:none}.nav{padding:6px 10px;font-size:13px}main{padding:12px}}
 @media(max-width:560px){.stats{grid-template-columns:1fr}.hr{justify-content:space-between;width:100%;text-align:left}.avrow{gap:7px}.tt{flex-wrap:wrap}}
 .formrow select{min-width:160px}
+.region-change{align-items:center}
+.region-change select{min-width:220px}
 .region-map-card>p:first-child{margin:0 0 12px}
 .region-map-stage{overflow:hidden;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
 .region-map-stage svg{display:block;width:100%;height:min(62vh,560px);min-height:320px;cursor:crosshair}

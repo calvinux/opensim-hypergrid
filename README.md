@@ -48,7 +48,7 @@ Tabs include the dashboard (process, memory, disk, grid, and region status), a c
 history and command shortcuts, user management, backups, Hypergrid links, and the action log.
 
 - **Backups:** SQLite databases are backed up online using the SQLite backup API, and the configured region files are copied.
-  The OAR backup contains the first configured region. Backups are stored in `data/backups/`. Database restoration is
+  An OAR backup contains one archive for every configured region; loading its OARs restores each region. Backups are stored in `data/backups/`. Database restoration is
   scheduled and applied at the next startup; the previous state is kept in `data/backups/avant-restauration-…`.
   Set `BACKUP_EVERY_HOURS` to enable automatic database backups.
 - **Read-only account:** configure `WEB_VIEWER_USER` and `WEB_VIEWER_PASS`. This account can view status,
@@ -117,7 +117,7 @@ Les onglets comprennent le tableau de bord (processus, mémoire, disque, état d
 historique et commandes rapides, la gestion des utilisateurs, les sauvegardes, les liens Hypergrid et le journal d'actions.
 
 - **Sauvegardes :** les bases SQLite sont copiées **à chaud** via l'API de sauvegarde SQLite, et les fichiers de configuration des régions sont copiés.
-  La sauvegarde OAR contient la première région configurée. Les fichiers sont dans `data/backups/`. La restauration des bases est programmée
+  La sauvegarde OAR contient un fichier par région configurée ; le chargement restaure toutes les régions sauvegardées. Les fichiers sont dans `data/backups/`. La restauration des bases est programmée
   puis appliquée au prochain démarrage ; l'état précédent est conservé dans `data/backups/avant-restauration-…`.
   Définir `BACKUP_EVERY_HOURS` pour activer les sauvegardes automatiques des bases.
 - **Compte lecteur :** configurer `WEB_VIEWER_USER` et `WEB_VIEWER_PASS`. Ce compte peut consulter l'état,

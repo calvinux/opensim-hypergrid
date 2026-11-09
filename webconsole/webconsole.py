@@ -460,10 +460,17 @@ def make_backup(kind, label="", prefix=""):
             os.makedirs(os.path.join(d, "Regions"))
             for f in glob.glob(os.path.join(REGDIR, "*.ini")):
                 shutil.copy2(f, os.path.join(d, "Regions"))
+        oar_regions = []
         if kind in ("oar", "both"):
-            send_cmd(f"save oar {os.path.join(d, regs[0]['name'] + '.oar')}")
+            for index, configured_region in enumerate(regs, 1):
+                region = pick_region(configured_region["name"])
+                slug = re.sub(r"[^A-Za-z0-9_-]", "_", region).strip("_") or "region"
+                filename = f"{index:03d}-{slug}.oar"
+                send_cmd(f"save oar {qarg(os.path.join(d, filename))}")
+                oar_regions.append({"file": filename, "region": region})
         with open(os.path.join(d, "manifest.json"), "w", encoding="utf-8") as f:
-            json.dump({"created": time.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}, f)
+            json.dump({"created": time.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind,
+                       "oar_regions": oar_regions}, f)
     prune()
     return name
 
@@ -550,8 +557,7 @@ def pick_region(name):
     name = str(name or regs[0])
     if name not in regs:
         raise ValueError("région inconnue")
-    if len(regs) > 1:
-        send_cmd(f"change region {qarg(name)}")
+    send_cmd(f"change region {qarg(name)}")
     return name
 
 
@@ -1214,6 +1220,10 @@ class Handler(BaseHTTPRequestHandler):
                 r = region_create(body)
                 audit(who, f"région créée {r['name']} ({r['location']}, port {r['port']})")
                 return self._json(200, {"ok": True, **r})
+            if path == "/api/regions/change":
+                region = pick_region(body.get("region"))
+                audit(who, f"change region {region}")
+                return self._json(200, {"ok": True, "region": region})
             if path == "/api/regions/delete":
                 region_delete(str(body.get("name", "")), bool(body.get("export")))
                 audit(who, f"région retirée {body.get('name')}" + (" (export OAR demandé)" if body.get("export") else ""))
@@ -1290,11 +1300,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True, "message": "Restauration programmée : elle s'appliquera au prochain démarrage de la grille."})
             if path == "/api/backups/loadoar":
                 d = bdir(body.get("name"))
-                oars = [f for f in os.listdir(d) if f.endswith(".oar")]
+                oars = sorted(f for f in os.listdir(d) if f.endswith(".oar"))
                 if not oars:
                     return self._err(400, "aucun OAR dans cette sauvegarde")
-                send_cmd(f"load oar {os.path.join(d, oars[0])}")
-                audit(who, f"load oar {os.path.basename(d)}/{oars[0]}")
+                manifest_path = os.path.join(d, "manifest.json")
+                if os.path.isfile(manifest_path):
+                    with open(manifest_path, encoding="utf-8") as f:
+                        manifest = json.load(f)
+                else:
+                    manifest = {}
+                oar_regions = {
+                    item["file"]: item["region"]
+                    for item in manifest.get("oar_regions", [])
+                    if isinstance(item, dict) and isinstance(item.get("file"), str)
+                    and isinstance(item.get("region"), str)
+                }
+                for filename in oars:
+                    region = oar_regions.get(filename, os.path.splitext(filename)[0])
+                    pick_region(region)
+                    send_cmd(f"load oar {qarg(os.path.join(d, filename))}")
+                    audit(who, f"load oar {os.path.basename(d)}/{filename} -> {region}")
                 return self._json(200, {"ok": True})
         except CmdError as e:
             return self._err(e.code, str(e))

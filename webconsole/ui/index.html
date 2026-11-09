@@ -84,7 +84,7 @@
       <div class="card">
         <div class="formrow">
           <button class="btn primary" data-bk="db" data-i18n="Sauvegarder les bases (à chaud)">Sauvegarder les bases (à chaud)</button>
-          <button class="btn" data-bk="oar" data-i18n="Exporter la région (OAR)">Exporter la région (OAR)</button>
+          <button class="btn" data-bk="oar" data-i18n="Exporter toutes les régions (OAR)">Exporter toutes les régions (OAR)</button>
           <button class="btn" data-bk="both" data-i18n="Les deux">Les deux</button>
         </div>
         <p class="muted" id="bkinfo"></p>
@@ -95,6 +95,14 @@
     <section id="tab-regions" class="tab hidden">
       <header><h2 data-i18n="Régions">Régions</h2><div class="tools"><button class="btn small" id="showRegionMap" data-i18n="Voir la carte">Voir la carte</button><button class="btn small" id="refreshRegions" data-i18n="Actualiser">Actualiser</button></div></header>
       <div id="regbox"></div>
+      <div class="card">
+        <h3 data-i18n="Région active dans la console">Région active dans la console</h3>
+        <p class="muted" data-i18n="Change uniquement la région ciblée par les commandes de la console ; cela ne déplace pas les avatars.">Change uniquement la région ciblée par les commandes de la console ; cela ne déplace pas les avatars.</p>
+        <div class="formrow region-change">
+          <select id="regionSelect" size="4" aria-label="Région à activer dans la console" data-i18n-aria-label="Région à activer dans la console"></select>
+          <button class="btn primary" id="changeRegion" data-i18n="Changer la région de la console">Changer la région de la console</button>
+        </div>
+      </div>
       <div class="card">
         <h3 data-i18n="Ajouter une région">Ajouter une région</h3>
         <div class="formrow">
