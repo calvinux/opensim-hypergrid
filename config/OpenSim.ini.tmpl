@@ -1,0 +1,26 @@
+; Surcharge minimale : tout le reste vient de OpenSimDefaults.ini
+[Const]
+BaseHostname = "${PUBLIC_HOST}"
+BaseURL = http://${Const|BaseHostname}
+PublicPort = "${PUBLIC_PORT}"
+PrivatePort = "8003"
+
+[Architecture]
+Include-Architecture = "config-include/StandaloneHypergrid.ini"
+
+[Network]
+http_listener_port = ${PUBLIC_PORT}
+ExternalHostNameForLSL = "${PUBLIC_HOST}"
+
+[GatekeeperService]
+ExternalName = "http://${PUBLIC_HOST}:${PUBLIC_PORT}"
+
+[Hypergrid]
+HomeURI = "http://${PUBLIC_HOST}:${PUBLIC_PORT}"
+GatekeeperURI = "http://${PUBLIC_HOST}:${PUBLIC_PORT}"
+
+[Estates]
+DefaultEstateName = "${ESTATE_NAME}"
+DefaultEstateOwnerName = "${ADMIN_FIRST} ${ADMIN_LAST}"
+DefaultEstateOwnerEMail = "${ADMIN_EMAIL}"
+DefaultEstateOwnerPassword = "${ADMIN_PASS}"

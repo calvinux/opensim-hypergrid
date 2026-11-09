@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>OpenSim · console</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div id="login" class="login hidden">
+  <form id="loginform" class="login-card" autocomplete="on">
+    <h1 id="loginTitle">OpenSim</h1>
+    <label class="langpick"><span data-i18n="Langue">Langue</span><select id="loginLanguage" aria-label="Langue" data-i18n-aria-label="Langue"><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option><option value="it">Italiano</option></select></label>
+    <p class="muted" data-i18n="Console d'administration">Console d'administration</p>
+    <label><span data-i18n="Utilisateur">Utilisateur</span><input id="lu" name="username" autocomplete="username" required></label>
+    <label><span data-i18n="Mot de passe">Mot de passe</span><input id="lp" name="password" type="password" autocomplete="current-password" required></label>
+    <label id="lcWrap" class="hidden"><span data-i18n="Code à 6 chiffres">Code à 6 chiffres</span><input id="lc" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>
+    <button class="btn primary" type="submit" data-i18n="Se connecter">Se connecter</button>
+    <p id="lerr" class="error"></p>
+  </form>
+</div>
+
+<div id="app" class="app hidden">
+  <nav class="side">
+    <div class="brand"><span class="dot" id="brandDot"></span><div><div class="bn"><span id="brandName">OpenSim</span><span class="ver">v2.4</span></div><div class="host" id="brandHost"></div></div></div>
+    <label class="langpick"><span data-i18n="Langue">Langue</span><select id="language" aria-label="Langue" data-i18n-aria-label="Langue"><option value="fr">Français</option><option value="en">English</option><option value="de">Deutsch</option><option value="it">Italiano</option></select></label>
+    <button class="nav active" data-tab="dashboard" data-i18n="Tableau de bord">Tableau de bord</button>
+    <button class="nav" data-tab="console" data-i18n="Console">Console</button>
+    <button class="nav" data-tab="users" data-i18n="Utilisateurs">Utilisateurs</button>
+    <button class="nav" data-tab="backups" data-i18n="Sauvegardes">Sauvegardes</button>
+    <button class="nav" data-tab="regions" data-i18n="Régions">Régions</button>
+    <button class="nav" data-tab="region-map" data-i18n="Carte des régions">Carte des régions</button>
+    <button class="nav" data-tab="xfer" data-i18n="Import / Export">Import / Export</button>
+    <button class="nav" data-tab="grid" data-i18n="Grille & liens">Grille &amp; liens</button>
+    <button class="nav" data-tab="audit" data-i18n="Journal d'actions">Journal d'actions</button>
+    <div class="spacer"></div>
+    <div class="me"><span id="meName"></span> <span id="meRole" class="badge"></span></div>
+    <button class="btn small" id="logout" data-i18n="Déconnexion">Déconnexion</button>
+  </nav>
+
+  <main>
+    <section id="tab-dashboard" class="tab">
+      <header><div class="tt"><h2 data-i18n="Tableau de bord">Tableau de bord</h2><span class="pill" id="gridPill" data-i18n="Connexion…">Connexion…</span></div><div class="tools"><button class="btn adminonly" id="restartConsole" title="Relance seulement la console : la grille continue de tourner" data-i18n="Redémarrer la console">Redémarrer la console</button><button class="btn primary" id="refreshDash" data-i18n="Actualiser">Actualiser</button></div></header>
+      <div id="dash" class="dash"></div>
+    </section>
+
+    <section id="tab-console" class="tab hidden">
+      <header><h2 data-i18n="Console">Console</h2>
+        <div class="tools">
+          <input id="logq" placeholder="Filtrer le journal…" aria-label="Filtrer" data-i18n-placeholder="Filtrer le journal…" data-i18n-aria-label="Filtrer">
+          <select id="logl" aria-label="Niveau" data-i18n-aria-label="Niveau"><option value="all" data-i18n="Tout">Tout</option><option value="warn" data-i18n="Avertissements+">Avertissements+</option><option value="err" data-i18n="Erreurs">Erreurs</option></select>
+          <label class="chk"><input type="checkbox" id="logpause"><span data-i18n="Pause">Pause</span></label>
+          <button class="btn small" id="logclear" data-i18n="Vider">Vider</button>
+          <button class="btn small" id="logdl" data-i18n="Télécharger">Télécharger</button>
+        </div>
+      </header>
+      <div id="logbox" class="logbox" tabindex="0"></div>
+      <div class="cmdrow">
+        <input id="cmd" placeholder="Commande OpenSim (↑ ↓ : historique)" autocomplete="off" spellcheck="false" data-i18n-placeholder="Commande OpenSim (↑ ↓ : historique)">
+        <button class="btn primary" id="send" data-i18n="Envoyer">Envoyer</button>
+        <button class="btn" id="ent" title="Envoyer une ligne vide : accepte la valeur par défaut proposée par OpenSim" data-i18n-title="Envoyer une ligne vide : accepte la valeur par défaut proposée par OpenSim">&#8629; <span data-i18n="Entrée">Entrée</span></button>
+      </div>
+      <div id="chips" class="chips"></div>
+    </section>
+
+    <section id="tab-users" class="tab hidden">
+      <header><h2 data-i18n="Utilisateurs">Utilisateurs</h2><button class="btn small" id="refreshUsers" data-i18n="Actualiser">Actualiser</button></header>
+      <div id="usersbox"></div>
+      <div class="card" id="createuser">
+        <h3 data-i18n="Créer un utilisateur">Créer un utilisateur</h3>
+        <div class="formrow">
+          <input id="nf" placeholder="Prénom" data-i18n-placeholder="Prénom"><input id="nl" placeholder="Nom de famille" data-i18n-placeholder="Nom de famille">
+          <input id="np" type="password" placeholder="Mot de passe" autocomplete="new-password" data-i18n-placeholder="Mot de passe"><input id="ne" placeholder="E-mail" data-i18n-placeholder="E-mail">
+          <button class="btn primary" id="mkuser" data-i18n="Créer">Créer</button>
+        </div>
+        <p class="muted" data-i18n="Sans espaces. La liste se met à jour quelques secondes après la création.">Sans espaces. La liste se met à jour quelques secondes après la création.</p>
+      </div>
+    </section>
+
+    <section id="tab-backups" class="tab hidden">
+      <header><h2 data-i18n="Sauvegardes">Sauvegardes</h2><button class="btn small" id="refreshBackups" data-i18n="Actualiser">Actualiser</button></header>
+      <div class="card">
+        <div class="formrow">
+          <button class="btn primary" data-bk="db" data-i18n="Sauvegarder les bases (à chaud)">Sauvegarder les bases (à chaud)</button>
+          <button class="btn" data-bk="oar" data-i18n="Exporter la région (OAR)">Exporter la région (OAR)</button>
+          <button class="btn" data-bk="both" data-i18n="Les deux">Les deux</button>
+        </div>
+        <p class="muted" id="bkinfo"></p>
+      </div>
+      <div id="bkbox"></div>
+    </section>
+
+    <section id="tab-regions" class="tab hidden">
+      <header><h2 data-i18n="Régions">Régions</h2><div class="tools"><button class="btn small" id="showRegionMap" data-i18n="Voir la carte">Voir la carte</button><button class="btn small" id="refreshRegions" data-i18n="Actualiser">Actualiser</button></div></header>
+      <div id="regbox"></div>
+      <div class="card">
+        <h3 data-i18n="Ajouter une région">Ajouter une région</h3>
+        <div class="formrow">
+          <input id="rn" placeholder="Nom de la région" aria-label="Nom" data-i18n-placeholder="Nom de la région" data-i18n-aria-label="Nom">
+          <input id="rl" placeholder="Position x,y" aria-label="Position" data-i18n-placeholder="Position x,y" data-i18n-aria-label="Position">
+          <select id="rs" aria-label="Taille" data-i18n-aria-label="Taille"><option value="256">256 × 256</option><option value="512">512 × 512</option><option value="768">768 × 768</option><option value="1024">1024 × 1024</option></select>
+          <input id="rp" placeholder="Port" inputmode="numeric" aria-label="Port" data-i18n-placeholder="Port" data-i18n-aria-label="Port">
+          <button class="btn primary" id="rmk" data-i18n="Créer">Créer</button>
+        </div>
+        <p class="muted" data-i18n="La position (premier emplacement libre) et le port (suivant disponible) sont proposés automatiquement. Une région n'est active qu'après un redémarrage de la grille.">La position (premier emplacement libre) et le port (suivant disponible) sont proposés automatiquement. Une région n'est active qu'après un redémarrage de la grille.</p>
+        <p id="regnote"></p>
+      </div>
+    </section>
+
+    <section id="tab-region-map" class="tab hidden">
+      <header><h2 data-i18n="Carte des régions">Carte des régions</h2><div class="tools"><button class="btn small" id="mapToRegions" data-i18n="Créer une région">Créer une région</button><button class="btn small" id="refreshRegionMap" data-i18n="Actualiser">Actualiser</button></div></header>
+      <div class="card region-map-card">
+        <p class="muted" data-i18n="Chaque carré représente un emplacement de région. Cliquez sur une case libre pour préremplir sa position dans le formulaire de création.">Chaque carré représente un emplacement de région. Cliquez sur une case libre pour préremplir sa position dans le formulaire de création.</p>
+        <div id="regionMap" class="region-map-stage"></div>
+        <div class="region-map-legend"><span><i class="region-map-swatch occupied"></i> <span data-i18n="Région configurée">Région configurée</span></span><span><i class="region-map-swatch preview"></i> <span data-i18n="Position sélectionnée">Position sélectionnée</span></span></div>
+        <p id="regionMapInfo" class="muted" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section id="tab-xfer" class="tab hidden">
+      <header><h2 data-i18n="Import / Export (OAR & IAR)">Import / Export (OAR &amp; IAR)</h2><button class="btn small" id="refreshXfer" data-i18n="Actualiser">Actualiser</button></header>
+      <div id="xferbox"></div>
+    </section>
+
+    <section id="tab-grid" class="tab hidden">
+      <header><h2 data-i18n="Grille & liens">Grille &amp; liens</h2><button class="btn small" id="refreshGrid" data-i18n="Actualiser">Actualiser</button></header>
+      <div id="gridbox" class="cards"></div>
+    </section>
+
+    <section id="tab-audit" class="tab hidden">
+      <header><h2 data-i18n="Journal d'actions">Journal d'actions</h2><button class="btn small" id="refreshAudit" data-i18n="Actualiser">Actualiser</button></header>
+      <pre id="auditbox" class="logbox"></pre>
+    </section>
+  </main>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script src="/i18n.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

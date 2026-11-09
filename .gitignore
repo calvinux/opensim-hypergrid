@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+
+data/
+opensim-hypergrid*.tar
+.vscode/
+
+**/__pycache__/
+*.py[cod]

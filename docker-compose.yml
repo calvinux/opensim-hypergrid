@@ -1,0 +1,21 @@
+name: opensim-solo
+
+services:
+  opensim:
+    build:
+      context: .
+      args:
+        OPENSIM_REF: ${OPENSIM_REF:-master}
+        DOTNET_VERSION: ${DOTNET_VERSION:-8.0}
+    image: opensim-hypergrid:local
+    container_name: opensim-hypergrid
+    network_mode: host
+    restart: "no"            # Occasional use: start manually.
+    stop_grace_period: 60s   # Allow 'shutdown' time to save data.
+    env_file: .env
+    entrypoint: [/bin/bash, /entrypoint.sh]
+    volumes:
+      - ./data:/data
+      - ./webconsole:/opt/webconsole:ro
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./config:/opt/config:ro
