@@ -68,10 +68,11 @@ done
 
 # --- Log and command FIFO ---
 OUT="$DATA/logs/console.log"
-[ -f "$OUT" ] && mv -f "$OUT" "$OUT.1"
-: > "$OUT"
+python3 /opt/webconsole/console_log.py "$OUT" --initialize
 FIFO=/tmp/os.in
 rm -f "$FIFO"; mkfifo "$FIFO"
+LOGFIFO=/tmp/os.log
+rm -f "$LOGFIFO"; mkfifo "$LOGFIFO"
 exec 3<>"$FIFO"        # Keep the FIFO open so OpenSim does not receive end-of-file.
 
 export CONSOLE_FIFO="$FIFO" CONSOLE_LOG="$OUT"
@@ -103,10 +104,18 @@ rm -f "$DATA/restart.flag"
 CRASHES=0
 while true; do
   STARTED=$(date +%s)
-  dotnet OpenSim.dll -console=basic < "$FIFO" > >(tee -a "$OUT") 2>&1 &
+  python3 /opt/webconsole/console_log.py "$OUT" < "$LOGFIFO" &
+  LOGPID=$!
+  dotnet OpenSim.dll -console=basic < "$FIFO" > "$LOGFIFO" 2>&1 &
   OSPID=$!
   RC=0; wait "$OSPID" || RC=$?
   while kill -0 "$OSPID" 2>/dev/null; do wait "$OSPID" || RC=$?; done   # A signal can interrupt the first wait.
+  LOGRC=0; wait "$LOGPID" || LOGRC=$?
+  while kill -0 "$LOGPID" 2>/dev/null; do wait "$LOGPID" || LOGRC=$?; done
+  if [ "$LOGRC" -ne 0 ]; then
+    echo "[entrypoint] erreur du journal de console (code $LOGRC) : arrêt" >&2
+    exit "$LOGRC"
+  fi
   [ "$STOPPING" = 1 ] && break
   if [ -f "$DATA/restart.flag" ]; then rm -f "$DATA/restart.flag"; CRASHES=0; echo "[entrypoint] relance d'OpenSim demandée"; continue; fi
   if [ "$RC" -ne 0 ]; then

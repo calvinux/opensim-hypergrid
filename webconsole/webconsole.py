@@ -102,15 +102,23 @@ class CmdError(Exception):
 
 
 def send_cmd(cmd):
-    cmd = (cmd or "").strip()   # une commande vide est autorisée : simple retour chariot (accepte la valeur par défaut d'une question)
-    if len(cmd) > 500 or any(c in cmd for c in "\r\n\x00"):
+    send_cmds([cmd])
+
+
+def send_cmds(commands):
+    commands = [(cmd or "").strip() for cmd in commands]
+    if any(len(cmd) > 500 or any(c in cmd for c in "\r\n\x00") for cmd in commands):
         raise CmdError("commande invalide")
+    data = ("\n".join(commands) + "\n").encode("utf-8")
     try:
         fd = os.open(FIFO, os.O_WRONLY | os.O_NONBLOCK)
     except OSError:
         raise CmdError("OpenSim ne lit pas la console (arrêté ?)", 503)
     try:
-        os.write(fd, (cmd + "\n").encode("utf-8"))
+        if len(data) > os.fpathconf(fd, "PC_PIPE_BUF"):
+            raise CmdError("commandes trop longues")
+        if os.write(fd, data) != len(data):
+            raise CmdError("envoi des commandes incomplet", 503)
     finally:
         os.close(fd)
 
@@ -133,20 +141,22 @@ def iso(v):
 
 
 # ---------------------------------------------------------------- journal
-def read_log(pos):
+def read_log(pos, cursor=None):
     try:
-        size = os.path.getsize(LOG)
-    except OSError:
+        with open(LOG, "rb") as f:
+            data = f.read()
+    except FileNotFoundError:
         return {"pos": 0, "text": "", "reset": True}
+    size = len(data)
     reset = False
     if pos is None or pos < 0 or pos > size:
         pos, reset = max(0, size - TAIL_BYTES), True
+    elif cursor is not None and cursor != hashlib.sha256(data[:pos]).hexdigest():
+        pos, reset = max(0, size - TAIL_BYTES), True
     elif size - pos > MAX_CHUNK:
         pos, reset = size - MAX_CHUNK, True
-    with open(LOG, "rb") as f:
-        f.seek(pos)
-        data = f.read(size - pos)
-    return {"pos": pos + len(data), "text": ANSI.sub("", data.decode("utf-8", "replace")), "reset": reset}
+    return {"pos": size, "cursor": hashlib.sha256(data).hexdigest(),
+            "text": ANSI.sub("", data[pos:].decode("utf-8", "replace")), "reset": reset}
 
 
 def tail_file(path, n=200):
@@ -781,7 +791,8 @@ def online_avatars():
             fl = names.get(parts[0].lower())
             hg = fl is None
             first, last = fl if fl else (parts[2] if len(parts) > 2 else parts[0][:8], "")
-            out.append({"name": f"{first} {last}".strip(), "first": first, "last": last, "hg": hg,
+            out.append({"id": parts[0], "name": f"{first} {last}".strip(), "first": first, "last": last, "hg": hg,
+                        "home": parts[1] if hg and len(parts) > 1 else None,
                         "region": regs.get(str(d.get("lastregionid", "")).lower(), "?"), "since": login or None})
     except sqlite3.Error:
         return []
@@ -789,6 +800,43 @@ def online_avatars():
         c.close()
     out.sort(key=lambda a: a["name"].lower())
     return out
+
+
+def kick_hypergrid_visitor(avatar_id, text):
+    if any(word.lstrip("'\"\\").startswith("-") for word in text.split()):
+        raise ValueError("le message ne peut pas contenir de mot commençant par un tiret")
+    try:
+        avatar_id = str(uuid.UUID(str(avatar_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("identifiant d'avatar invalide")
+    avatars = online_avatars()
+    matches = [a for a in avatars if a["hg"] and a["id"].lower() == avatar_id]
+    if len(matches) != 1:
+        raise ValueError("visiteur Hypergrid introuvable ou identité ambiguë")
+    avatar = matches[0]
+    home = urlparse(avatar["home"] or "")
+    name = avatar["name"].split()
+    if (len(name) != 2 or not all(re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", part) for part in name)
+            or home.scheme not in ("http", "https") or not home.hostname
+            or not re.fullmatch(r"[A-Za-z0-9.:\[\]-]+", home.netloc)):
+        raise ValueError("identité Hypergrid incomplète ou invalide")
+    first, last = ".".join(name), "@" + home.netloc
+    for other in avatars:
+        if other is avatar:
+            continue
+        if other["hg"]:
+            other_home = urlparse(other["home"] or "")
+            other_name = other["name"].split()
+            other_first, other_last = ".".join(other_name), "@" + other_home.netloc
+        else:
+            other_first, other_last = other["first"], other["last"]
+        if other_first.casefold() == first.casefold() and other_last.casefold() == last.casefold():
+            raise ValueError("nom d'avatar ambigu : expulsion refusée")
+    region = avatar["region"]
+    if region not in [r["name"] for r in regions()] or not REGNAME_RE.fullmatch(region):
+        raise ValueError("région du visiteur inconnue ou invalide")
+    send_cmds([f"change region {qarg(region)}", f"kick user {first} {last} {text}".strip()])
+    return avatar, first, last
 
 
 def announce(text):
@@ -1024,7 +1072,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, status())
             if path == "/api/log":
                 p = q.get("pos", [None])[0]
-                return self._json(200, read_log(int(p) if p and p.lstrip("-").isdigit() else None))
+                return self._json(200, read_log(int(p) if p and p.lstrip("-").isdigit() else None,
+                                               q.get("cursor", [None])[0]))
             if path == "/api/users":
                 return self._json(200, list_users(admin))
             if path == "/api/backups":
@@ -1275,6 +1324,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     send_cmd(f"kick user {f} {l} {t}".strip())
                 audit(who, f"{path.rsplit('/', 1)[1]} {f} {l}")
+                return self._json(200, {"ok": True})
+            if path == "/api/avatars/kick-hypergrid":
+                t = " ".join(str(body.get("text", "")).split())[:200]
+                avatar, first, last = kick_hypergrid_visitor(body.get("id"), t)
+                audit(who, f"kick Hypergrid {first} {last} ({avatar['id']}) région {avatar['region']}")
                 return self._json(200, {"ok": True})
             if path == "/api/alerts/test":
                 if not channels():

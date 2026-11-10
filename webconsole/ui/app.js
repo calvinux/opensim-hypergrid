@@ -75,14 +75,19 @@ function toast(msg, kind) {
   setTimeout(() => t.remove(), kind === 'bad' ? 7000 : 3500);
 }
 async function copyText(txt) {
-  try { await navigator.clipboard.writeText(txt); }
+  try { await navigator.clipboard.writeText(txt); toast(tr('Copié'), 'ok'); return; }
   catch (e) {
-    const ta = h('textarea', {}); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.append(ta); ta.select();
-    try { document.execCommand('copy'); } catch (e2) { /* ignoré */ }
-    ta.remove();
+    const ta = h('textarea', { 'aria-label': 'Texte à copier' });
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.append(ta);
+    try {
+      ta.select();
+      if (!document.execCommand('copy')) throw new Error('copy failed');
+      toast(tr('Copié'), 'ok');
+    } catch (e2) {
+      toast(tr('Copie impossible : sélectionnez et copiez le texte manuellement.'), 'bad');
+    } finally { ta.remove(); }
   }
-  toast(tr('Copié'), 'ok');
 }
 async function api(path, { method = 'GET', body } = {}) {
   const o = { method, headers: { 'X-Requested-With': 'webconsole' }, credentials: 'same-origin' };
@@ -222,7 +227,11 @@ function renderStatus(s) {
   const hero = h('div', { class: 'card hero' },
     h('div', { class: 'hl' }, h('span', { class: 'ib' }, ico('server')),
       h('div', null, h('div', { class: 'ht' }, s.grid_name, h('span', { class: 'tag', text: 'PID ' + (o.pid || '—') })),
-        h('div', { class: 'muted mono sm', text: msg('Uptime : {0} · {1}:{2}', fmtDur(o.uptime), s.host, s.port) }))),
+        h('div', { class: 'muted mono sm', text: msg('Uptime : {0} · {1}:{2}', fmtDur(o.uptime), s.host, s.port) }),
+        s.links && s.links.login ? h('div', { class: 'hero-login' },
+          h('span', { class: 'muted sm', text: 'URI de connexion' }),
+          h('div', { class: 'hero-login-row' }, h('strong', { class: 'hero-login-uri', text: s.links.login }),
+            h('button', { class: 'btn small', 'aria-label': 'Copier l’URI de connexion', onclick: () => copyText(s.links.login) }, 'Copier'))) : null)),
     h('div', { class: 'hr' }, h('div', null, h('div', { class: 'muted xs', text: s.restart_job ? 'Redémarrage programmé' : 'Redémarrage automatique' }), h('div', { class: 'mono sm', text: next })),
       admin ? h('button', { class: 'btn warn', onclick: () => { const e = $('#rmin'); if (e) { e.scrollIntoView({ behavior: 'smooth', block: 'center' }); e.focus(); } } }, ico('clock'), 'Programmer un redémarrage') : null));
   const stats = h('div', { class: 'stats' },
@@ -267,9 +276,16 @@ function avatarsCard(s) {
       h('div', { class: 'who' }, ava, h('div', null, h('div', { class: 'wn', text: v.name }), h('div', { class: 'muted xs', text: v.hg ? 'Visiteur Hypergrid' : 'Compte local' }))),
       h('div', null, h('span', { class: 'rpill', text: v.region })),
       h('div', { class: 'mono sm', text: v.since ? `${new Date(v.since * 1000).toLocaleTimeString({ fr: 'fr-FR', en: 'en-GB', de: 'de-DE', it: 'it-IT' }[window.WC_I18N.language])} (${fmtDur(nowS - v.since)})` : '—' }),
-      h('div', { class: 'acts' }, admin && !v.hg ? [
-        ibtn('msg', 'Message privé', () => { const t = prompt(trf('Message privé à {0} :', v.name)); if (t) post('/api/avatars/message', { first: v.first, last: v.last, text: t }, 'Message envoyé'); }),
-        ibtn('kick', 'Expulser', () => { if (!confirm(trf('Expulser {0} ?', v.name))) return; post('/api/avatars/kick', { first: v.first, last: v.last, text: prompt(tr("Message affiché à l'avatar (facultatif) :")) || '' }, 'Avatar expulsé'); }, true),
+      h('div', { class: 'acts' }, admin ? [
+        !v.hg ? ibtn('msg', 'Message privé', () => { const t = prompt(trf('Message privé à {0} :', v.name)); if (t) post('/api/avatars/message', { first: v.first, last: v.last, text: t }, 'Message envoyé'); }) : null,
+        ibtn('kick', 'Expulser', () => {
+          const target = v.hg ? `${v.name} (${v.home || 'Hypergrid'})` : v.name;
+          if (!confirm(trf(v.hg ? 'Expulser {0} ? La console ciblera la région {1}.' : 'Expulser {0} ?', target, v.region))) return;
+          const text = prompt(tr("Message affiché à l'avatar (facultatif) :"));
+          if (text === null) return;
+          post(v.hg ? '/api/avatars/kick-hypergrid' : '/api/avatars/kick',
+            v.hg ? { id: v.id, text } : { first: v.first, last: v.last, text }, tr('Commande d’expulsion envoyée ; vérifier la console.'));
+        }, true),
       ] : v.hg ? h('span', { class: 'muted xs', text: 'visiteur' }) : null));
   });
   return h('div', { class: 'card' }, cardTitle('users', 'Avatars en ligne', a.length),
@@ -307,7 +323,7 @@ $('#restartConsole').onclick = async () => {
 
 /* ---------- console ---------- */
 const MAXL = 3000;
-let lines = [], partial = '', logPos = null, hist = [], hi = 0;
+let lines = [], partial = '', logPos = null, logCursor = null, hist = [], hi = 0;
 try { hist = JSON.parse(sessionStorage.getItem('hist') || '[]'); } catch (e) { hist = []; }
 hi = hist.length;
 
@@ -340,9 +356,10 @@ function renderTail(added, full) {
 async function pollLog() {
   if ($('#logpause').checked) return;
   try {
-    const d = await api('/api/log' + (logPos == null ? '' : '?pos=' + logPos));
+    const d = await api('/api/log' + (logPos == null ? '' : '?pos=' + logPos + '&cursor=' + encodeURIComponent(logCursor)));
     if (d.reset) { lines = []; partial = ''; }
     logPos = d.pos;
+    logCursor = d.cursor;
     if (!d.text && !d.reset) return;
     const parts = (partial + d.text).split('\n'); partial = parts.pop();
     const added = parts.map(t => ({ t, s: sev(t) }));

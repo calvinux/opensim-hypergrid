@@ -35,6 +35,9 @@ The image build defaults to the `master` branch; set `OPENSIM_REF` in `.env` to 
 
 - Persistent data is stored in `./data/`: databases in `data/db`, region configuration in `data/Regions`,
   and logs in `data/logs`.
+- `data/logs/console.log` retains the last 100 console lines, including across restarts. Older lines are
+  discarded; existing `console.log.1` files are left untouched. Container logs and `web-actions.log`
+  have separate retention policies. Use `tail -F data/logs/console.log` to follow the replaced file.
 - To start over, stop the container, remove `./data`, and start it again. **This permanently deletes grid data.**
 - To update, run `docker compose build --no-cache` and then `docker compose up -d`.
   Data in `./data` is retained.
@@ -46,6 +49,7 @@ The interface supports French, English, German, and Italian, and remembers the s
 
 Tabs include the dashboard (process, memory, disk, grid, and region status), a console with filtering,
 history and command shortcuts, user management, backups, Hypergrid links, and the action log.
+The dashboard displays the viewer login URI in its top card, with a copy button.
 
 - **Backups:** SQLite databases are backed up online using the SQLite backup API, and the configured region files are copied.
   An OAR backup contains one archive for every configured region; loading its OARs restores each region. Backups are stored in `data/backups/`. Database restoration is
@@ -69,6 +73,7 @@ history and command shortcuts, user management, backups, Hypergrid links, and th
 - **Dashboard:** view connected avatars, send them a message or eject them, restart immediately or schedule a restart with
   announcements (`RESTART_DAILY_AT` for a daily restart), and configure ntfy, Discord, or Telegram alerts (`ALERT_*`).
   `entrypoint.sh` restarts OpenSim when requested by the console and after a crash, up to five consecutive attempts.
+  Kicking a Hypergrid visitor selects their region in the console; check the console output to confirm the kick.
 
 ## Français
 
@@ -104,6 +109,10 @@ Par défaut, le build utilise la branche `master` ; définir `OPENSIM_REF` dans 
 
 - Les données persistantes sont dans `./data/` : bases dans `data/db`, configuration de la région dans `data/Regions`
   et journaux dans `data/logs`.
+- `data/logs/console.log` conserve les 100 dernières lignes de la console, même après un redémarrage.
+  Les lignes plus anciennes sont supprimées ; les fichiers `console.log.1` existants ne sont pas modifiés.
+  Les journaux du conteneur et `web-actions.log` ont une rétention distincte. Utiliser
+  `tail -F data/logs/console.log` pour suivre le fichier remplacé.
 - Pour repartir de zéro, arrêter le conteneur, supprimer `./data`, puis le relancer. **Cette opération supprime définitivement les données de la grille.**
 - Pour mettre à jour, lancer `docker compose build --no-cache`, puis `docker compose up -d`.
   Les données dans `./data` sont conservées.
@@ -115,6 +124,7 @@ L'interface est disponible en français, anglais, allemand et italien, et mémor
 
 Les onglets comprennent le tableau de bord (processus, mémoire, disque, état de la grille et des régions), une console avec filtre,
 historique et commandes rapides, la gestion des utilisateurs, les sauvegardes, les liens Hypergrid et le journal d'actions.
+La première carte du tableau de bord affiche l'URI de connexion pour les viewers, avec un bouton pour la copier.
 
 - **Sauvegardes :** les bases SQLite sont copiées **à chaud** via l'API de sauvegarde SQLite, et les fichiers de configuration des régions sont copiés.
   La sauvegarde OAR contient un fichier par région configurée ; le chargement restaure toutes les régions sauvegardées. Les fichiers sont dans `data/backups/`. La restauration des bases est programmée
@@ -139,3 +149,4 @@ historique et commandes rapides, la gestion des utilisateurs, les sauvegardes, l
 - **Tableau de bord :** consulter les avatars connectés, leur envoyer un message ou les expulser, redémarrer immédiatement ou programmer
   un redémarrage avec annonces (`RESTART_DAILY_AT` pour un redémarrage quotidien), et configurer les alertes ntfy, Discord ou Telegram (`ALERT_*`).
   `entrypoint.sh` relance OpenSim à la demande de la console et après un plantage, jusqu'à cinq fois de suite.
+  Expulser un visiteur Hypergrid sélectionne sa région dans la console ; vérifier le journal pour confirmer l'expulsion.
