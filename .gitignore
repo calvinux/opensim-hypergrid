@@ -4,6 +4,7 @@
 
 data/
 opensim-hypergrid*.tar
+mock_server.py
 .vscode/
 
 **/__pycache__/
