@@ -1,5 +1,9 @@
 # OpenSim solo Hypergrid in Docker / OpenSim Hypergrid solo dans Docker
 
+## [Watch the demo video / Voir la vidéo de démonstration](https://youtu.be/2KX4Q-Q02hc)
+
+Explore the web console and its features in action. / Découvrez la console web et ses fonctionnalités en action.
+
 [English](#english) | [Français](#français)
 
 ## English
