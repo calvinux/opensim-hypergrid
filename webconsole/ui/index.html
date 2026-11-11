@@ -42,7 +42,7 @@
 
   <main>
     <section id="tab-dashboard" class="tab">
-      <header><div class="tt"><h2 data-i18n="Tableau de bord">Tableau de bord</h2><span class="pill" id="gridPill" data-i18n="Connexion…">Connexion…</span></div><div class="tools"><button class="btn adminonly" id="restartConsole" title="Relance seulement la console : la grille continue de tourner" data-i18n="Redémarrer la console">Redémarrer la console</button><button class="btn primary" id="refreshDash" data-i18n="Actualiser">Actualiser</button></div></header>
+      <header><div class="tt"><h2 data-i18n="Tableau de bord">Tableau de bord</h2><span class="pill" id="gridPill" data-i18n="Connexion…">Connexion…</span></div><div class="tools"><button class="btn adminonly" id="restartConsole" title="Relance seulement la console : la grille continue de tourner" data-i18n-title="Relance seulement la console : la grille continue de tourner" data-i18n="Redémarrer la console">Redémarrer la console</button><button class="btn primary" id="refreshDash" data-i18n="Actualiser">Actualiser</button></div></header>
       <div id="dash" class="dash"></div>
     </section>
 
@@ -94,13 +94,15 @@
 
     <section id="tab-regions" class="tab hidden">
       <header><h2 data-i18n="Régions">Régions</h2><div class="tools"><button class="btn small" id="showRegionMap" data-i18n="Voir la carte">Voir la carte</button><button class="btn small" id="refreshRegions" data-i18n="Actualiser">Actualiser</button></div></header>
+      <p class="muted" data-i18n="L'état affiché correspond au prochain démarrage de la grille, pas nécessairement à son état actuel.">L'état affiché correspond au prochain démarrage de la grille, pas nécessairement à son état actuel.</p>
       <div id="regbox"></div>
       <div class="card">
         <h3 data-i18n="Région active dans la console">Région active dans la console</h3>
         <p class="muted" data-i18n="Change uniquement la région ciblée par les commandes de la console ; cela ne déplace pas les avatars.">Change uniquement la région ciblée par les commandes de la console ; cela ne déplace pas les avatars.</p>
+        <p id="runningRegionInfo" class="muted" aria-live="polite"></p>
         <div class="formrow region-change">
-          <select id="regionSelect" size="4" aria-label="Région à activer dans la console" data-i18n-aria-label="Région à activer dans la console"></select>
-          <button class="btn primary" id="changeRegion" data-i18n="Changer la région de la console">Changer la région de la console</button>
+          <select id="regionSelect" size="4" aria-label="Région à activer dans la console" data-i18n-aria-label="Région à activer dans la console" disabled></select>
+          <button class="btn primary" id="changeRegion" data-i18n="Changer la région de la console" disabled>Changer la région de la console</button>
         </div>
       </div>
       <div class="card">
@@ -122,7 +124,7 @@
       <div class="card region-map-card">
         <p class="muted" data-i18n="Chaque carré représente un emplacement de région. Cliquez sur une case libre pour préremplir sa position dans le formulaire de création.">Chaque carré représente un emplacement de région. Cliquez sur une case libre pour préremplir sa position dans le formulaire de création.</p>
         <div id="regionMap" class="region-map-stage"></div>
-        <div class="region-map-legend"><span><i class="region-map-swatch occupied"></i> <span data-i18n="Région configurée">Région configurée</span></span><span><i class="region-map-swatch preview"></i> <span data-i18n="Position sélectionnée">Position sélectionnée</span></span></div>
+        <div class="region-map-legend"><span><i class="region-map-swatch occupied"></i> <span data-i18n="Activée au prochain démarrage">Activée au prochain démarrage</span></span><span><i class="region-map-swatch inactive"></i> <span data-i18n="Désactivée au prochain démarrage">Désactivée au prochain démarrage</span></span><span><i class="region-map-swatch preview"></i> <span data-i18n="Position sélectionnée">Position sélectionnée</span></span></div>
         <p id="regionMapInfo" class="muted" aria-live="polite"></p>
       </div>
     </section>

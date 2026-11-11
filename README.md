@@ -71,6 +71,14 @@ The dashboard displays the viewer login URI in its top card, with a copy button.
   in the create-region form. A free position and available port are suggested automatically; overlaps and port
   conflicts are checked. Regions can be removed with an optional OAR export, which is kept in `data/regions-removed`.
   A new region becomes active only after a grid restart. Remember to allow its TCP/UDP port in your router and DSM firewall.
+  Enable or disable a region in the list for the next grid startup: its file is renamed between `.ini` and `.inactive`,
+  and disabled regions remain listed. The displayed state is configuration, not the current running state.
+  On the region map, green marks regions enabled for the next startup and grey marks disabled regions.
+  A file containing multiple regions must be edited manually. Disabled regions still reserve their names, positions and ports.
+  Configuration backups include disabled files; OAR exports only include regions configured as enabled.
+  If all regions are disabled, no default region is created; OpenSim may require a region to start normally.
+  The console-region selector checks the running regions separately using OpenSim's local map service.
+  If that service cannot be verified, the selector is disabled; use Refresh to retry.
 - **Restarting only the web console:** use **Restart console** on the dashboard. OpenSim continues running,
   but you will need to sign in again. `entrypoint.sh` supervises the web console and restarts it after an unexpected failure.
   Files under `webconsole/` (Python and `ui/`) can therefore be updated without rebuilding the image or restarting the container.
@@ -147,6 +155,14 @@ La première carte du tableau de bord affiche l'URI de connexion pour les viewer
   dans le formulaire de création. Une position libre et un port disponible sont proposés automatiquement ; les chevauchements
   et conflits de ports sont vérifiés. Une région peut être retirée avec un export OAR facultatif, conservé dans `data/regions-removed`.
   Une nouvelle région n'est active qu'après le redémarrage de la grille. Penser à autoriser son port TCP/UDP sur la box et le pare-feu DSM.
+  Activer ou désactiver une région dans la liste pour le prochain démarrage : son fichier passe de `.ini` à `.inactive`
+  ou inversement, et elle reste visible dans la liste. L'état affiché est celui de la configuration, pas nécessairement celui de la grille en cours.
+  Sur la carte, le vert indique une région activée pour le prochain démarrage et le gris une région désactivée.
+  Un fichier contenant plusieurs régions doit être modifié manuellement. Les régions désactivées réservent toujours leur nom, leur emplacement et leur port.
+  Les sauvegardes de configuration incluent les fichiers désactivés ; les exports OAR ne concernent que les régions configurées comme activées.
+  Si toutes les régions sont désactivées, aucune région par défaut n'est créée ; OpenSim peut avoir besoin d'une région pour démarrer normalement.
+  La liste de sélection de la console vérifie séparément les régions démarrées via le service de carte local d'OpenSim.
+  Si cette vérification est impossible, la sélection est désactivée ; utiliser Actualiser pour réessayer.
 - **Redémarrer uniquement la console web :** utiliser le bouton « Redémarrer la console » du tableau de bord.
   OpenSim continue de tourner, mais il faudra se reconnecter. `entrypoint.sh` supervise la console web et la relance après une panne inattendue.
   Les fichiers de `webconsole/` (Python et `ui/`) peuvent donc être mis à jour sans reconstruire l'image ni redémarrer le conteneur.

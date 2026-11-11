@@ -9,7 +9,7 @@
 """
 import base64, configparser, glob, hashlib, hmac, http.cookies, json, os, re, secrets, shutil
 import sqlite3, struct, sys, tempfile, threading, time, uuid, zipfile
-import urllib.request
+import urllib.error, urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -279,9 +279,12 @@ def sim_stats():
 
 
 # ---------------------------------------------------------------- régions / liens
-def regions():
+def regions(include_inactive=False):
     out = []
-    for f in sorted(glob.glob(os.path.join(REGDIR, "*.ini"))):
+    files = glob.glob(os.path.join(REGDIR, "*.ini"))
+    if include_inactive:
+        files += glob.glob(os.path.join(REGDIR, "*.inactive"))
+    for f in sorted(files):
         cp = configparser.ConfigParser(interpolation=None, strict=False)
         cp.optionxform = str
         try:
@@ -290,11 +293,44 @@ def regions():
             continue
         for sec in cp.sections():
             d = cp[sec]
-            out.append({"name": sec, "file": os.path.basename(f), "uuid": d.get("RegionUUID"),
+            out.append({"name": sec, "file": os.path.basename(f), "active": f.endswith(".ini"), "uuid": d.get("RegionUUID"),
                         "location": d.get("Location"),
                         "size": f'{d.get("SizeX", "256")}x{d.get("SizeY", "256")}',
                         "port": d.get("InternalPort"), "host": d.get("ExternalHostName")})
     return out
+
+
+def running_regions():
+    if not find_pid():
+        return []
+    configured = regions(include_inactive=True)
+    if not configured:
+        raise CmdError("état des régions indisponible", 503)
+    running, handles = [], set()
+    for region in configured:
+        try:
+            x, y = (int(value.strip()) for value in str(region["location"]).split(","))
+            if not (0 <= x <= 16777215 and 0 <= y <= 16777215):
+                raise CmdError("état des régions indisponible", 503)
+            handle = (x * 256 << 32) | (y * 256)
+            if handle in handles:
+                raise CmdError("état des régions indisponible", 503)
+            handles.add(handle)
+            url = f"http://127.0.0.1:{PUBLIC_PORT}/MAP/MapItems/{handle}"
+            with urllib.request.urlopen(url, timeout=2) as response:
+                root = ET.fromstring(response.read(1048576))
+            if root.tag != "llsd" or root.find("./map/key[.='6']") is None:
+                raise CmdError("état des régions indisponible", 503)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                continue
+            raise CmdError("état des régions indisponible", 503) from e
+        except (OSError, ValueError, ET.ParseError) as e:
+            raise CmdError("état des régions indisponible", 503) from e
+        running.append(region["name"])
+    if not running:
+        raise CmdError("état des régions indisponible", 503)
+    return running
 
 
 def links():
@@ -468,8 +504,9 @@ def make_backup(kind, label="", prefix=""):
                     dst.close()
                     src.close()
             os.makedirs(os.path.join(d, "Regions"))
-            for f in glob.glob(os.path.join(REGDIR, "*.ini")):
-                shutil.copy2(f, os.path.join(d, "Regions"))
+            for extension in ("*.ini", "*.inactive"):
+                for f in glob.glob(os.path.join(REGDIR, extension)):
+                    shutil.copy2(f, os.path.join(d, "Regions"))
         oar_regions = []
         if kind in ("oar", "both"):
             for index, configured_region in enumerate(regs, 1):
@@ -585,7 +622,7 @@ def _overlap(a, b):
 
 
 def region_suggest(size=256):
-    regs = regions()
+    regs = regions(include_inactive=True)
     used = [_cells(r) for r in regs if r["location"]]
     x = 1000
     while any(_overlap((x, 1000, size // 256), u) for u in used):
@@ -601,7 +638,7 @@ def region_create(b):
     name = str(b.get("name", "")).strip()
     if not REGNAME_RE.match(name):
         raise ValueError("nom invalide (lettres, chiffres, espaces, - et _ ; 40 caractères max)")
-    regs = regions()
+    regs = regions(include_inactive=True)
     if any(r["name"].lower() == name.lower() for r in regs):
         raise ValueError("une région porte déjà ce nom")
     size = int(b.get("size") or 256)
@@ -620,6 +657,8 @@ def region_create(b):
     if any(_overlap((x, y, size // 256), _cells(r)) for r in regs if r["location"]):
         raise ValueError("cet emplacement est déjà occupé")
     fn = re.sub(r"[^A-Za-z0-9_-]", "_", name) + ".ini"
+    if os.path.lexists(os.path.join(REGDIR, os.path.splitext(fn)[0] + ".inactive")):
+        raise ValueError("un fichier de ce nom existe déjà")
     txt = (f"[{name}]\nRegionUUID = {uuid.uuid4()}\nLocation = {loc}\nSizeX = {size}\nSizeY = {size}\nSizeZ = 256\n"
            f"InternalAddress = 0.0.0.0\nInternalPort = {port}\nAllowAlternatePorts = False\nExternalHostName = {PUBLIC_HOST}\n")
     os.makedirs(REGDIR, exist_ok=True)
@@ -631,8 +670,31 @@ def region_create(b):
     return {"name": name, "file": fn, "port": port, "location": loc}
 
 
+_region_lock = threading.Lock()
+
+
+def region_set_active(filename, active):
+    if not isinstance(filename, str) or type(active) is not bool:
+        raise ValueError("état ou fichier de région invalide")
+    with _region_lock:
+        regs = [r for r in regions(include_inactive=True) if r["file"] == filename]
+        if not regs:
+            raise ValueError("région inconnue")
+        if len(regs) != 1:
+            raise ValueError("ce fichier contient plusieurs régions : à modifier à la main")
+        r = regs[0]
+        if r["active"] == active:
+            raise ValueError("la région est déjà dans cet état")
+        source = os.path.join(REGDIR, filename)
+        destination = os.path.splitext(source)[0] + (".ini" if active else ".inactive")
+        if os.path.lexists(destination):
+            raise ValueError("un fichier de ce nom existe déjà")
+        os.rename(source, destination)
+        return r["name"]
+
+
 def region_delete(name, export):
-    regs = regions()
+    regs = regions(include_inactive=True)
     r = next((x for x in regs if x["name"] == name), None)
     if not r:
         raise ValueError("région inconnue")
@@ -641,6 +703,8 @@ def region_delete(name, export):
     if len([x for x in regs if x["file"] == r["file"]]) > 1:
         raise ValueError("ce fichier contient plusieurs régions : à retirer à la main")
     if export:
+        if not r["active"]:
+            raise ValueError("impossible d'exporter une région désactivée")
         fn = f"{re.sub(r'[^A-Za-z0-9_-]', '_', name)}-{time.strftime('%Y%m%d-%H%M%S')}.oar"
         pick_region(name)
         send_cmd("save oar " + os.path.join(xfer_dir("oar"), fn))
@@ -987,7 +1051,7 @@ for _p, _ct in (("/", "index.html"), ("/app.css", "app.css"), ("/i18n.js", "i18n
     except OSError:
         pass
 
-ADMIN_ONLY_GET = ("/api/backups/download", "/api/audit", "/api/transfer", "/api/transfer/download", "/api/regions")
+ADMIN_ONLY_GET = ("/api/backups/download", "/api/audit", "/api/transfer", "/api/transfer/download", "/api/regions", "/api/regions/running")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1084,11 +1148,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._download(q.get("name", [""])[0], s)
             if path == "/api/regions":
                 sz = q.get("size", ["256"])[0]
-                return self._json(200, {"items": regions(), "suggest": region_suggest(int(sz) if sz.isdigit() else 256)})
+                return self._json(200, {"items": regions(include_inactive=True), "suggest": region_suggest(int(sz) if sz.isdigit() else 256)})
+            if path == "/api/regions/running":
+                return self._json(200, {"items": running_regions()})
             if path == "/api/transfer":
                 return self._json(200, list_transfer(q.get("kind", [""])[0]))
             if path == "/api/transfer/download":
                 return self._send_file(xfer_file(q.get("kind", [""])[0], q.get("name", [""])[0]), s)
+        except CmdError as e:
+            return self._err(e.code, str(e))
         except ValueError as e:
             return self._err(400, str(e))
         except Exception as e:
@@ -1270,9 +1338,17 @@ class Handler(BaseHTTPRequestHandler):
                 audit(who, f"région créée {r['name']} ({r['location']}, port {r['port']})")
                 return self._json(200, {"ok": True, **r})
             if path == "/api/regions/change":
-                region = pick_region(body.get("region"))
+                region = body.get("region")
+                if not isinstance(region, str) or not REGNAME_RE.fullmatch(region) or region not in running_regions():
+                    raise ValueError("région non démarrée ou inconnue")
+                send_cmd(f"change region {qarg(region)}")
                 audit(who, f"change region {region}")
                 return self._json(200, {"ok": True, "region": region})
+            if path == "/api/regions/active":
+                active = body.get("active")
+                name = region_set_active(body.get("file"), active)
+                audit(who, f"région {'activée' if active else 'désactivée'} au prochain démarrage {name}")
+                return self._json(200, {"ok": True, "name": name, "active": active})
             if path == "/api/regions/delete":
                 region_delete(str(body.get("name", "")), bool(body.get("export")))
                 audit(who, f"région retirée {body.get('name')}" + (" (export OAR demandé)" if body.get("export") else ""))

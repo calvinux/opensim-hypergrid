@@ -34,14 +34,25 @@ if [ -f "$DATA/restore.pending" ]; then
     mkdir -p "$SAVE/db"
     mv "$DATA"/db/*.db "$SAVE/db/" 2>/dev/null || true
     cp -a "$RSRC"/db/*.db "$DATA/db/"
-    if ls "$RSRC"/Regions/*.ini >/dev/null 2>&1; then cp -a "$RSRC"/Regions/*.ini "$DATA/Regions/"; fi
+    for region_file in "$RSRC"/Regions/*.ini "$RSRC"/Regions/*.inactive; do
+      [ -f "$region_file" ] || continue
+      region_name="$(basename "$region_file")"
+      region_base="${region_name%.*}"
+      if [[ "$region_name" == *.ini ]]; then opposite="$region_base.inactive"; else opposite="$region_base.ini"; fi
+      mkdir -p "$SAVE/Regions"
+      for existing in "$DATA/Regions/$region_name" "$DATA/Regions/$opposite"; do
+        if [ -e "$existing" ]; then cp -a "$existing" "$SAVE/Regions/"; fi
+      done
+      rm -f "$DATA/Regions/$opposite"
+      cp -a "$region_file" "$DATA/Regions/$region_name"
+    done
     echo "[entrypoint] RESTAURATION appliquée depuis $RNAME (état précédent conservé dans $(basename "$SAVE"))"
   else
     echo "[entrypoint] restauration ignorée : sauvegarde '$RNAME' introuvable ou invalide"
   fi
   rm -f "$DATA/restore.pending"
 fi
-if ! ls "$DATA"/Regions/*.ini >/dev/null 2>&1; then
+if ! ls "$DATA"/Regions/*.ini >/dev/null 2>&1 && ! ls "$DATA"/Regions/*.inactive >/dev/null 2>&1; then
   export REGION_UUID="$(cat /proc/sys/kernel/random/uuid)"
   envsubst '${REGION_NAME} ${REGION_UUID} ${REGION_LOCATION} ${PUBLIC_HOST} ${PUBLIC_PORT}' \
     < /opt/config/Region.ini.tmpl > "$DATA/Regions/${REGION_NAME}.ini"

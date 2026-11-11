@@ -5,6 +5,20 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const tr = window.WC_I18N.tr;
 const trText = window.WC_I18N.trText;
 const trf = window.WC_I18N.trf;
+function translateServerError(value) {
+  const text = String(value);
+  const patterns = [
+    [/^extension non acceptée \((.*)\)$/, 'extension non acceptée ({0})'],
+    [/^fichier trop gros \(limite (\d+) Mo\)$/, 'fichier trop gros (limite {0} Mo)'],
+    [/^erreur d'écriture: ([\s\S]*)$/, "erreur d'écriture: {0}"],
+    [/^erreur: ([\s\S]*)$/, 'erreur: {0}'],
+  ];
+  for (const [pattern, source] of patterns) {
+    const match = pattern.exec(text);
+    if (match) return trf(source, match[1]);
+  }
+  return tr(text);
+}
 const msg = (source, ...args) => ({ __i18nTemplate: source, __i18nArgs: args });
 function setLocalizedText(element, source, ...args) {
   element.dataset.i18nSource = source;
@@ -95,7 +109,7 @@ async function api(path, { method = 'GET', body } = {}) {
   const r = await fetch(path, o);
   if (r.status === 401 && !path.startsWith('/api/login')) { showLogin(); throw new Error(tr('Session expirée')); }
   let d = null; try { d = await r.json(); } catch (e) { /* corps vide */ }
-  if (!r.ok) throw new Error(tr((d && d.error) || trf('Erreur {0}', r.status)));
+  if (!r.ok) throw new Error(translateServerError((d && d.error) || trf('Erreur {0}', r.status)));
   return d;
 }
 
@@ -417,14 +431,14 @@ async function loadUsers() {
         const email = h('input', { type: 'email', value: u.email || '', maxlength: '254', 'aria-label': msg('E-mail de {0} {1}', u.first, u.last) });
         const currentLevel = u.level == null ? '' : String(u.level);
         const knownLevels = [
-          [-1, 'Bloqué'], [0, 'Utilisateur normal'], [200, 'Admin'], [250, 'Grid admin'],
+          [-1, '{0} · Bloqué'], [0, '{0} · Utilisateur normal'], [200, '{0} · Admin'], [250, '{0} · Grid admin'],
         ];
         const options = knownLevels.map(([value, label]) => h('option', {
           value: String(value), selected: currentLevel === String(value),
-        }, `${value} · ${label}`));
+        }, msg(label, value)));
         if (!knownLevels.some(([value]) => currentLevel === String(value))) {
           options.unshift(h('option', { value: currentLevel, selected: true },
-            currentLevel ? `Niveau actuel (${currentLevel})` : 'Non défini (inchangé)'));
+            currentLevel ? msg('Niveau actuel ({0})', currentLevel) : 'Non défini (inchangé)'));
         }
         const level = h('select', { 'aria-label': msg('Niveau de {0} {1}', u.first, u.last) }, options);
         const save = h('button', { class: 'btn small primary', onclick: async () => {
@@ -551,7 +565,7 @@ function uploader(kind) {
       let d = {}; try { d = JSON.parse(x.responseText); } catch (e) { /* ignoré */ }
       st.textContent = '';
       if (x.status === 200) { toast(trf('Fichier envoyé : {0}', d.name), 'ok'); f.value = ''; loadXferLists(); }
-      else toast(tr(d.error || trf('Erreur {0}', x.status)), 'bad');
+      else toast(translateServerError(d.error || trf('Erreur {0}', x.status)), 'bad');
     };
     x.onerror = () => { st.textContent = ''; toast("Échec de l'envoi", 'bad'); };
     st.textContent = '0 %'; x.send(file);
@@ -609,7 +623,7 @@ async function exportOar() {
 async function loadOarFile(i) {
   const merge = $('#omerge').checked;
   if (!confirm(trf('Charger {0} dans la région {1} ?\n{2}', i.name, $('#xr').value,
-    merge ? 'Le contenu sera fusionné avec l\'existant.' : 'Le contenu actuel de la région sera REMPLACÉ.'))) return;
+    tr(merge ? 'Le contenu sera fusionné avec l\'existant.' : 'Le contenu actuel de la région sera REMPLACÉ.')))) return;
   try {
     await api('/api/oar/load', { method: 'POST', body: { name: i.name, region: $('#xr').value, merge, skip_assets: $('#oskip').checked } });
     toast('Chargement lancé (suivre la console)', 'ok');
@@ -643,7 +657,7 @@ async function delXfer(kind, i) {
 $('#refreshXfer').onclick = loadXfer;
 
 /* ---------- régions ---------- */
-let regionMapData = null;
+let regionMapData = null, runningRegionRequest = 0;
 const parseRegionLocation = location => {
   const match = /^\s*(-?\d+)\s*,\s*(-?\d+)\s*$/.exec(String(location || ''));
   return match ? { x: Number(match[1]), y: Number(match[2]) } : null;
@@ -682,8 +696,10 @@ function renderRegionMap(data = regionMapData) {
   svg.append(defs, element('rect', { x: left, y: -top, width, height, class: 'region-map-background' }),
     element('rect', { x: left, y: -top, width, height, fill: 'url(#region-map-grid)' }));
   for (const region of regions) {
-    const rect = element('rect', { x: region.x, y: -region.y - region.cells, width: region.cells, height: region.cells, class: 'region-map-region' });
-    rect.append(element('title', {}, `${region.name} — ${region.x},${region.y} (${region.size})`));
+    const rect = element('rect', { x: region.x, y: -region.y - region.cells, width: region.cells, height: region.cells,
+      class: 'region-map-region' + (region.active ? '' : ' is-inactive') });
+    rect.append(element('title', {}, trf(region.active ? '{0} — {1},{2} ({3}) · activée au prochain démarrage' :
+      '{0} — {1},{2} ({3}) · désactivée au prochain démarrage', region.name, region.x, region.y, region.size)));
     svg.append(rect);
     if (region.cells >= 2) svg.append(element('text', { x: region.x + region.cells / 2, y: -region.y - region.cells / 2, class: 'region-map-label' }, region.name));
   }
@@ -693,7 +709,7 @@ function renderRegionMap(data = regionMapData) {
     svg.append(element('rect', { x: selected.x, y: -selected.y - selectedSize, width: selectedSize, height: selectedSize,
       class: 'region-map-selection' + (overlaps ? ' is-overlapping' : '') }));
     setLocalizedText($('#regionMapInfo'), 'Position sélectionnée : {0},{1} · {2} × {3}{4}',
-      selected.x, selected.y, selectedSize * 256, selectedSize * 256, overlaps ? ' · emplacement déjà occupé' : '');
+      selected.x, selected.y, selectedSize * 256, selectedSize * 256, overlaps ? tr(' · emplacement déjà occupé') : '');
     } else {
       setLocalizedText($('#regionMapInfo'), 'Aucune position de région valide à afficher.');
   }
@@ -715,18 +731,34 @@ function renderRegionMap(data = regionMapData) {
   $('#regionMap').replaceChildren(svg);
 }
 async function loadRegions() {
+  const request = ++runningRegionRequest;
+  const regionSelect = $('#regionSelect'), selectedRegion = regionSelect.value;
+  regionSelect.replaceChildren();
+  regionSelect.disabled = true;
+  $('#changeRegion').disabled = true;
+  setLocalizedText($('#runningRegionInfo'), 'Vérification des régions démarrées…');
   try {
     const d = await api('/api/regions?size=' + ($('#rs').value || 256));
-    $('#regbox').replaceChildren(table(['Nom', 'Position', 'Taille', 'Port', 'UUID', ''],
-      d.items.map(r => [r.name, r.location, r.size, r.port, r.uuid, h('button', { class: 'btn small danger', onclick: () => delRegion(r) }, 'Retirer')])));
-    const regionSelect = $('#regionSelect'), selectedRegion = regionSelect.value;
-    regionSelect.replaceChildren(...d.items.map(r => h('option', { value: r.name, text: r.name })));
-    if (d.items.some(r => r.name === selectedRegion)) regionSelect.value = selectedRegion;
-    $('#changeRegion').disabled = d.items.length === 0;
+    $('#regbox').replaceChildren(table(['Nom', 'Position', 'Taille', 'Port', 'UUID', 'État au prochain démarrage', ''],
+      d.items.map(r => [r.name, r.location, r.size, r.port, r.uuid, r.active ? 'Activée' : 'Désactivée',
+        h('div', { class: 'region-actions' },
+          h('button', { class: 'btn small', onclick: () => toggleRegion(r) }, r.active ? 'Désactiver' : 'Activer'),
+          h('button', { class: 'btn small danger', onclick: () => delRegion(r) }, 'Retirer'))])));
     setLocalizedAttribute($('#rl'), 'placeholder', 'Position x,y (proposée : {0})', d.suggest.location);
     setLocalizedAttribute($('#rp'), 'placeholder', 'Port (proposé : {0})', d.suggest.port);
     renderRegionMap(d);
-  } catch (e) { if (e.message !== 'Session expirée') toast(e.message, 'bad'); }
+    const running = await api('/api/regions/running');
+    if (request !== runningRegionRequest) return;
+    regionSelect.replaceChildren(...running.items.map(name => h('option', { value: name, text: name })));
+    if (running.items.includes(selectedRegion)) regionSelect.value = selectedRegion;
+    regionSelect.disabled = running.items.length === 0;
+    $('#changeRegion').disabled = running.items.length === 0;
+    setLocalizedText($('#runningRegionInfo'), running.items.length ? 'Seules les régions actuellement démarrées sont proposées.' : 'Aucune région démarrée.');
+  } catch (e) {
+    if (request !== runningRegionRequest) return;
+    setLocalizedText($('#runningRegionInfo'), 'Impossible de vérifier les régions démarrées. Réessayez avec Actualiser.');
+    if (e.message !== 'Session expirée') toast(e.message, 'bad');
+  }
 }
 async function loadRegionMap() {
   try {
@@ -753,10 +785,18 @@ $('#rmk').onclick = async () => {
   } catch (e) { toast(e.message, 'bad'); }
 };
 async function delRegion(r) {
-  const exp = confirm(trf("Exporter « {0} » en OAR avant de la retirer ?\nOK = exporter d'abord, Annuler = ne pas exporter.", r.name));
+  const exp = r.active && confirm(trf("Exporter « {0} » en OAR avant de la retirer ?\nOK = exporter d'abord, Annuler = ne pas exporter.", r.name));
   if (!confirm(trf("Retirer la région {0} ?\nSon fichier est mis de côté dans data/regions-removed ; la grille doit être redémarrée pour que ça prenne effet.", r.name))) return;
   try { await api('/api/regions/delete', { method: 'POST', body: { name: r.name, export: exp } }); toast(tr('Région retirée (redémarrage requis)'), 'ok'); loadRegions(); }
   catch (e) { toast(e.message, 'bad'); }
+}
+async function toggleRegion(r) {
+  try {
+    await api('/api/regions/active', { method: 'POST', body: { file: r.file, active: !r.active } });
+    setLocalizedText($('#regnote'), "Le changement pour « {0} » sera effectif au prochain démarrage de la grille.", r.name);
+    toast(tr('Changement enregistré (redémarrage requis)'), 'ok');
+    await loadRegions();
+  } catch (e) { toast(e.message, 'bad'); }
 }
 $('#refreshRegions').onclick = loadRegions;
 $('#refreshRegionMap').onclick = loadRegionMap;
