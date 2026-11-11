@@ -24,8 +24,8 @@ you can add more regions from the web console. It connects to the same grid as t
 3. Docker uses host networking, so the container uses the host's ports directly: 8002 (TCP and UDP) and 8090.
    Make sure these ports are available. In the DSM firewall, allow TCP/UDP 8002 and allow TCP 8090 only from your LAN.
    With host networking, the host firewall controls access.
-4. Build and start with `docker compose up -d --build`, or deploy the project in Container Manager.
-   The first build can take several minutes.
+4. Download the image with `docker compose pull`, then start with `docker compose up -d`,
+   or deploy the project in Container Manager. The published image supports `linux/amd64`.
 5. Open the web console at `http://<LAN-IP>:8090/` and sign in as `WEB_USER`.
    For remote access, use the VPN (the NAS OpenVPN server). Container Manager's **Log** tab also shows the logs.
 6. To stop the grid, use the **Stop grid** button or stop the container. It sends `shutdown` and allows 60 seconds for a clean shutdown.
@@ -33,7 +33,9 @@ you can add more regions from the web console. It connects to the same grid as t
 The `.env.example` file documents the available settings and contains only example values.
 `WEB_PASS` must be at least 8 characters to enable the web console. Optional settings include
 viewer access, TOTP, alerts, and scheduled backups.
-The image build defaults to the `master` branch; set `OPENSIM_REF` in `.env` to select a Git branch or tag.
+The Compose file uses `calvinux/opensim-hypergrid:latest` from [Docker Hub](https://hub.docker.com/r/calvinux/opensim-hypergrid).
+To build a custom image instead, run `docker build -t calvinux/opensim-hypergrid:latest --build-arg OPENSIM_REF=<branch-or-tag> .`.
+The Dockerfile defaults to OpenSim `master` and .NET 8.0; `DOTNET_VERSION` can also be supplied as a build argument.
 
 ### Data and updates
 
@@ -43,8 +45,10 @@ The image build defaults to the `master` branch; set `OPENSIM_REF` in `.env` to 
   discarded; existing `console.log.1` files are left untouched. Container logs and `web-actions.log`
   have separate retention policies. Use `tail -F data/logs/console.log` to follow the replaced file.
 - To start over, stop the container, remove `./data`, and start it again. **This permanently deletes grid data.**
-- To update, run `docker compose build --no-cache` and then `docker compose up -d`.
+- To update, run `docker compose pull` and then `docker compose up -d`.
   Data in `./data` is retained.
+- The Compose configuration mounts local `webconsole/`, `entrypoint.sh` and `config/` read-only over
+  the copies in the image. Keep these files up to date alongside the image when updating.
 
 ### Web console v2 (`http://<LAN-IP>:8090/`)
 
@@ -105,8 +109,8 @@ vous pouvez en ajouter d'autres depuis la console web. Il se connecte à la mêm
 3. Docker utilise le réseau `host` : le conteneur utilise directement les ports de la machine hôte, soit 8002 (TCP et UDP) et 8090.
    Vérifier qu'ils sont libres. Dans le pare-feu DSM, autoriser TCP/UDP 8002 et le port TCP 8090 depuis le réseau local uniquement.
    En mode `host`, c'est le pare-feu de l'hôte qui contrôle les accès.
-4. Construire et démarrer avec `docker compose up -d --build`, ou déployer le projet dans Container Manager.
-   Le premier build peut prendre plusieurs minutes.
+4. Télécharger l'image avec `docker compose pull`, puis démarrer avec `docker compose up -d`,
+   ou déployer le projet dans Container Manager. L'image publiée prend en charge `linux/amd64`.
 5. Ouvrir la console web à `http://<IP-LAN>:8090/` et se connecter avec `WEB_USER`.
    À distance, passer par le VPN (OpenVPN du NAS). Les journaux sont aussi visibles dans l'onglet « Journal » de Container Manager.
 6. Pour arrêter la grille, utiliser le bouton « Arrêter la grille » ou arrêter le conteneur. La commande `shutdown` est envoyée
@@ -115,7 +119,9 @@ vous pouvez en ajouter d'autres depuis la console web. Il se connecte à la mêm
 Le fichier `.env.example` documente les paramètres disponibles et ne contient que des valeurs d'exemple.
 `WEB_PASS` doit contenir au moins 8 caractères pour activer la console web. Les paramètres facultatifs
 comprennent le compte lecteur, le TOTP, les alertes et les sauvegardes planifiées.
-Par défaut, le build utilise la branche `master` ; définir `OPENSIM_REF` dans `.env` pour choisir une branche ou une étiquette Git.
+Le fichier Compose utilise `calvinux/opensim-hypergrid:latest` depuis [Docker Hub](https://hub.docker.com/r/calvinux/opensim-hypergrid).
+Pour construire une image personnalisée, lancer `docker build -t calvinux/opensim-hypergrid:latest --build-arg OPENSIM_REF=<branche-ou-étiquette> .`.
+Le Dockerfile utilise par défaut OpenSim `master` et .NET 8.0 ; `DOTNET_VERSION` peut également être fourni comme argument de build.
 
 ### Données et mises à jour
 
@@ -126,8 +132,10 @@ Par défaut, le build utilise la branche `master` ; définir `OPENSIM_REF` dans 
   Les journaux du conteneur et `web-actions.log` ont une rétention distincte. Utiliser
   `tail -F data/logs/console.log` pour suivre le fichier remplacé.
 - Pour repartir de zéro, arrêter le conteneur, supprimer `./data`, puis le relancer. **Cette opération supprime définitivement les données de la grille.**
-- Pour mettre à jour, lancer `docker compose build --no-cache`, puis `docker compose up -d`.
+- Pour mettre à jour, lancer `docker compose pull`, puis `docker compose up -d`.
   Les données dans `./data` sont conservées.
+- Le Compose monte les fichiers locaux `webconsole/`, `entrypoint.sh` et `config/` en lecture seule
+  par-dessus ceux de l'image. Lors des mises à jour, actualiser également ces fichiers en même temps que l'image.
 
 ### Console web v2 (`http://<IP-LAN>:8090/`)
 

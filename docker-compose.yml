@@ -2,12 +2,7 @@ name: opensim-solo
 
 services:
   opensim:
-    build:
-      context: .
-      args:
-        OPENSIM_REF: ${OPENSIM_REF:-master}
-        DOTNET_VERSION: ${DOTNET_VERSION:-8.0}
-    image: opensim-hypergrid:local
+    image: calvinux/opensim-hypergrid:latest
     container_name: opensim-hypergrid
     network_mode: host
     restart: "no"            # Occasional use: start manually.
